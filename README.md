@@ -7,7 +7,7 @@ on maintaining the identity of these detected objects as they move across multip
 like SORT (Simple Online and Realtime Tracking) and DeepSORT are frequently used to track objects
 and address challenges like obstruction, overlap, and changes in movement patterns. This project aims
 to develop a real-time object detection and tracking system to count pedestrians and vehicles in traffic
-footage. Leveraging advanced deep learning models like YOLOv3, the system will automatically detect
+footage. Leveraging advanced deep learning models like YOLOv7, the system will automatically detect
 people and cars within video streams, ensuring accurate identification across various traffic environments.
 The system will deliver reliable performance under different lighting and weather conditions by fine-tuning
 these models on specific datasets. The tracking module will utilize the DeepSORT algorithm to maintain
@@ -28,18 +28,18 @@ conditions and interactions.
 with annotations for both detection and segmentation tasks.
 Together, these datasets form a solid foundation for developing the object detection and tracking
 system, enhancing accuracy and effectiveness in real-time traffic analysis.
-We will use the COCO and VOC datasets to train and fine-tune the YOLOv3 model. These datasets
+We will use the COCO and VOC datasets to train and fine-tune the YOLOv7 model. These datasets
 contain labeled data with bounding boxes for cars, trucks, buses, and other vehicle types, providing
 robust training samples for the model.
 
 ## Model Training
-The YOLOv3 model will initially undergo pre-training on the COCO dataset, followed by fine-tuning
+The YOLOv7 model will initially undergo pre-training on the COCO dataset, followed by fine-tuning
 with the VOC dataset to enhance accuracy for vehicle-specific object categories. Transfer learning
 methods will be used to adjust the pre-trained model for the traffic video domain. The fine-tuning
 process will concentrate on important object classes, including cars, trucks, and buses.
 
 ## Object Detection and Tracking
-• Detection: YOLOv3’s bounding box predictions will identify vehicles in each video frame. We’ll
+• Detection: YOLOv7’s bounding box predictions will identify vehicles in each video frame. We’ll
 utilize three scales to detect objects of different sizes, which is crucial for handling the varying
 distances of vehicles from the camera.
 • Tracking: The SORT algorithm, combined with a Deep Association Metric (Deep SORT), will be
@@ -49,6 +49,12 @@ vehicle as it moves through the scene, allowing for precise counting.
 ## Counting Mechanism
 The system will be optimized for real-time performance, allowing efficient object detection, tracking,
 and counting to operate smoothly.
+
+# How to run the project
+```
+cd yolov7 `
+python detect_count_and_track.py --weights models/yolov7.pt --conf 0.55 --source data/test1.mp4 --view-img --nosave --no-trace
+```
 
 # Related Work
 Traffic surveillance now-a-days is leveraging object detection and tracking with multiple state-ofthe-
