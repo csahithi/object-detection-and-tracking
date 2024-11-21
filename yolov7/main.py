@@ -6,11 +6,11 @@ from utils.torch_utils import select_device
 import numpy as np
 
 # load model    
-device = select_device('cpu')  # GPU 사용 가능하면 '0'으로 설정
+device = select_device('cpu')  # GPU
 model = attempt_load('yolov7.pt', map_location=device)
 
 # read video file
-cap = cv2.VideoCapture('data/t1.mp4')
+cap = cv2.VideoCapture('data/test1.mp4')
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -27,7 +27,7 @@ while cap.isOpened():
     # detect object yolo model
     with torch.no_grad():  # detect object without gradient
         predictions = model(img)  # detect object
-        if isinstance(predictions, tuple):  # check the resutl is tuple
+        if isinstance(predictions, tuple):  # check the result is tuple
             predictions = predictions[0]
         results = non_max_suppression(predictions)  # organize the result nvms
 
