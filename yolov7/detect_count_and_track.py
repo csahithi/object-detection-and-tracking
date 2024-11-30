@@ -52,10 +52,10 @@ def compute_color_for_labels(label):
 """Function to Draw Bounding boxes"""
 def draw_boxes(img, bbox, identities=None, categories=None, names=None, offset=(0, 0)):
     frame_height, frame_width = img.shape[:2]
-    area1_pointA = (int(frame_width * 0.1), int(frame_height * 0.40))  # Start further left
-    area1_pointB = (int(frame_width * 0.9), int(frame_height * 0.40))  # Extend further right
-    area1_pointC = (int(frame_width * 0.1), int(frame_height * 0.80))  # Start further left
-    area1_pointD = (int(frame_width * 0.9), int(frame_height * 0.80))  # Extend further right
+    area1_pointA = (int(frame_width * 0), int(frame_height * 0.10))  # Start further left
+    area1_pointB = (int(frame_width * 1), int(frame_height * 0.10))  # Extend further right
+    area1_pointC = (int(frame_width * 0), int(frame_height * 0.90))  # Start further left
+    area1_pointD = (int(frame_width * 1), int(frame_height * 0.90))  # Extend further right
 
     for i, box in enumerate(bbox):
         x1, y1, x2, y2 = [int(i) for i in box]
@@ -91,7 +91,7 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None, offset=(
                     pedestrian_ids.append(id)
 
             # Add vehicle counting
-            if cat in [2, 3, 5, 7]:  # Assuming these classes are vehicles
+            if cat in [1, 2, 3, 4, 5, 6, 7, 8]:  # Assuming these classes are vehicles
                 if id not in array_ids:
                     array_ids.append(id)
             
@@ -262,10 +262,10 @@ def detect(save_img=False):
             frame_height, frame_width = im0.shape[:2]
 
             # Define the area points relative to the frame size
-            area1_pointA = (int(frame_width * 0.1), int(frame_height * 0.40))  # Start further left
-            area1_pointB = (int(frame_width * 0.9), int(frame_height * 0.40))  # Extend further right
-            area1_pointC = (int(frame_width * 0.1), int(frame_height * 0.80))  # Start further left
-            area1_pointD = (int(frame_width * 0.9), int(frame_height * 0.80))  # Extend further right
+            area1_pointA = (int(frame_width * 0), int(frame_height * 0.10))  # Start further left
+            area1_pointB = (int(frame_width * 1), int(frame_height * 0.10))  # Extend further right
+            area1_pointC = (int(frame_width * 0), int(frame_height * 0.90))  # Start further left
+            area1_pointD = (int(frame_width * 1), int(frame_height * 0.90))  # Extend further right
 
             # Draw the lines
             cv2.line(im0, area1_pointA, area1_pointB, (0, 255, 0), 2)
