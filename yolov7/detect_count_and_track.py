@@ -23,15 +23,13 @@ from sort import *
 """ Random created palette"""
 palette = (2 ** 11 - 1, 2 ** 15 - 1, 2 ** 20 - 1)
 
-area1_pointA = (210,350)
-area1_pointB = (865,350)
-area1_pointC = (165,400)
-area1_pointD = (920,400)
+
 
 #vehicles total counting variables
 array_ids = []
 counting = 0
 modulo_counting = 0
+pedestrian_ids = []
 
 
 """" Calculates the relative bounding box from absolute pixel values. """
@@ -53,6 +51,12 @@ def compute_color_for_labels(label):
 
 """Function to Draw Bounding boxes"""
 def draw_boxes(img, bbox, identities=None, categories=None, names=None, offset=(0, 0)):
+    frame_height, frame_width = img.shape[:2]
+    area1_pointA = (int(frame_width * 0.1), int(frame_height * 0.40))  # Start further left
+    area1_pointB = (int(frame_width * 0.9), int(frame_height * 0.40))  # Extend further right
+    area1_pointC = (int(frame_width * 0.1), int(frame_height * 0.80))  # Start further left
+    area1_pointD = (int(frame_width * 0.9), int(frame_height * 0.80))  # Extend further right
+
     for i, box in enumerate(bbox):
         x1, y1, x2, y2 = [int(i) for i in box]
         x1 += offset[0]
@@ -80,13 +84,16 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None, offset=(
             
             midpoint_color = (0,0,255)
             print('Category : '+str(cat))
-            
-            #add vehicles counting
-            if len(array_ids) > 0:
+
+            # Add pedestrian counting
+            if cat == 0:  # Assuming class 0 is for pedestrians
+                if id not in pedestrian_ids:
+                    pedestrian_ids.append(id)
+
+            # Add vehicle counting
+            if cat in [2, 3, 5, 7]:  # Assuming these classes are vehicles
                 if id not in array_ids:
                     array_ids.append(id)
-            else:
-                array_ids.append(id)
             
             
         cv2.circle(img,center_point,radius=1,color=midpoint_color,thickness=2)
@@ -96,6 +103,7 @@ def draw_boxes(img, bbox, identities=None, categories=None, names=None, offset=(
 
 
 def detect(save_img=False):
+    global pedestrian_ids, array_ids
     source, weights, view_img, save_txt, imgsz, trace = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace
     save_img = not opt.nosave and not source.endswith('.txt')  # save inference images
     webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
@@ -119,7 +127,7 @@ def detect(save_img=False):
     set_logging()
     device = select_device(opt.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
-    half = False
+    # half = False
 
     # Load model
     model = attempt_load(weights, map_location=device)  # load FP32 model
@@ -250,8 +258,21 @@ def detect(save_img=False):
             # Print time (inference + NMS)
             print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
 
-            cv2.line(im0,area1_pointA,area1_pointB,(0,255,0),2)
-            cv2.line(im0,area1_pointC,area1_pointD,(0,255,0),2)
+            # Dynamically calculate line positions based on the frame dimensions
+            frame_height, frame_width = im0.shape[:2]
+
+            # Define the area points relative to the frame size
+            area1_pointA = (int(frame_width * 0.1), int(frame_height * 0.40))  # Start further left
+            area1_pointB = (int(frame_width * 0.9), int(frame_height * 0.40))  # Extend further right
+            area1_pointC = (int(frame_width * 0.1), int(frame_height * 0.80))  # Start further left
+            area1_pointD = (int(frame_width * 0.9), int(frame_height * 0.80))  # Extend further right
+
+            # Draw the lines
+            cv2.line(im0, area1_pointA, area1_pointB, (0, 255, 0), 2)
+            cv2.line(im0, area1_pointC, area1_pointD, (0, 255, 0), 2)
+            #
+            # cv2.line(im0,area1_pointA,area1_pointB,(0,255,0),2)
+            # cv2.line(im0,area1_pointC,area1_pointD,(0,255,0),2)
 
             color = (0,255,0)
             thickness = 2
@@ -270,8 +291,10 @@ def detect(save_img=False):
                     if(len(array_ids)%100 == 0):
                         modulo_counting = modulo_counting + 100
                         array_ids.clear()
-                
-            cv2.putText(im0, 'Vehicle Count = '+str(counting), org, font, fontScale, color, thickness, cv2.LINE_AA)
+
+
+            cv2.putText(im0, f"Pedestrian Count: {len(pedestrian_ids)}", (30, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(im0, f"Vehicle Count: {len(array_ids)}", (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
             # Stream results
             if view_img:
