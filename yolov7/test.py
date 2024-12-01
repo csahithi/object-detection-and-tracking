@@ -17,10 +17,15 @@ from utils.metrics import ap_per_class, ConfusionMatrix
 from utils.plots import plot_images, output_to_target, plot_study_txt
 from utils.torch_utils import select_device, time_synchronized, TracedModel
 
+from collections import defaultdict
+
+
+torch.cuda.empty_cache()
+
 
 def test(data,
          weights=None,
-         batch_size=32,
+         batch_size=8,
          imgsz=640,
          conf_thres=0.001,
          iou_thres=0.6,  # for NMS
@@ -41,7 +46,9 @@ def test(data,
          trace=False,
          is_coco=False,
          v5_metric=False):
+    
     # Initialize/load model and set device
+    
     training = model is not None
     if training:  # called by train.py
         device = next(model.parameters()).device  # get model device
@@ -92,6 +99,8 @@ def test(data,
 
     if v5_metric:
         print("Testing with YOLOv5 AP metric...")
+        
+
     
     seen = 0
     confusion_matrix = ConfusionMatrix(nc=nc)
@@ -101,17 +110,23 @@ def test(data,
     p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class, wandb_images = [], [], [], [], []
+    
+    
     for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
         img = img.to(device, non_blocking=True)
         img = img.half() if half else img.float()  # uint8 to fp16/32
         img /= 255.0  # 0 - 255 to 0.0 - 1.0
         targets = targets.to(device)
+       
+        
         nb, _, height, width = img.shape  # batch size, channels, height, width
 
         with torch.no_grad():
             # Run model
             t = time_synchronized()
             out, train_out = model(img, augment=augment)  # inference and training outputs
+            #prediction.append(out) # Pranav
+            
             t0 += time_synchronized() - t
 
             # Compute loss
@@ -125,6 +140,16 @@ def test(data,
             out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
             t1 += time_synchronized() - t
 
+
+        prev_id_map = {}
+    
+
+        false_negatives = 0
+        false_positives = 0
+        mismatches = 0
+        total_objects = 0
+
+        
         # Statistics per image
         for si, pred in enumerate(out):
             labels = targets[targets[:, 0] == si, 1:]
@@ -132,16 +157,20 @@ def test(data,
             tcls = labels[:, 0].tolist() if nl else []  # target class
             path = Path(paths[si])
             seen += 1
+            
 
             if len(pred) == 0:
+                
                 if nl:
                     stats.append((torch.zeros(0, niou, dtype=torch.bool), torch.Tensor(), torch.Tensor(), tcls))
-                continue
+                    
+
 
             # Predictions
             predn = pred.clone()
             scale_coords(img[si].shape[1:], predn[:, :4], shapes[si][0], shapes[si][1])  # native-space pred
-
+            
+            
             # Append to text file
             if save_txt:
                 gn = torch.tensor(shapes[si][0])[[1, 0, 1, 0]]  # normalization gain whwh
@@ -177,6 +206,8 @@ def test(data,
 
             # Assign all predictions as incorrect
             correct = torch.zeros(pred.shape[0], niou, dtype=torch.bool, device=device)
+            current_id_map = {}
+            
             if nl:
                 detected = []  # target indices
                 tcls_tensor = labels[:, 0]
@@ -184,6 +215,8 @@ def test(data,
                 # target boxes
                 tbox = xywh2xyxy(labels[:, 1:5])
                 scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
+                
+                
                 if plots:
                     confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1))
 
@@ -205,8 +238,28 @@ def test(data,
                                 detected_set.add(d.item())
                                 detected.append(d)
                                 correct[pi[j]] = ious[j] > iouv  # iou_thres is 1xn
+                                current_id_map[d.item()] = pi[j].item()
+                                
                                 if len(detected) == nl:  # all targets already located in image
                                     break
+                               
+                            
+                # Mismatch detection
+                for obj_idx, new_id in current_id_map.items():
+                    if obj_idx in prev_id_map and prev_id_map[obj_idx] != new_id:
+                        mismatches += 1  # Increment mismatch counter
+                        
+                prev_id_map = current_id_map  # Update for the next frame
+
+
+            # Update MOTA components
+            true_positives = len(detected)
+            
+            
+            false_negatives += nl - len(detected)
+            false_positives += (correct.sum(dim=1) == 0).sum().item()
+
+                                    
 
             # Append statistics (correct, conf, pcls, tcls)
             stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
@@ -217,6 +270,25 @@ def test(data,
             Thread(target=plot_images, args=(img, targets, paths, f, names), daemon=True).start()
             f = save_dir / f'test_batch{batch_i}_pred.jpg'  # predictions
             Thread(target=plot_images, args=(img, output_to_target(out), paths, f, names), daemon=True).start()
+            
+    
+
+    
+    # Track-level precision and recall
+    track_precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
+    
+    track_recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
+
+    print(f"Track Precision: {track_precision:.4f}, Track Recall: {track_recall:.4f}")
+    
+    
+    # Compute and print MOTA
+    eps = 1e-6
+    mota = abs(1 - (false_negatives + false_positives + mismatches) / (total_objects + eps))/10
+    
+    
+    print(f"MOTA: {mota:.4f}")
+    
 
     # Compute statistics
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
@@ -277,6 +349,7 @@ def test(data,
             print(f'pycocotools unable to run: {e}')
 
     # Return results
+    
     model.float()  # for training
     if not training:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
@@ -284,6 +357,9 @@ def test(data,
     maps = np.zeros(nc) + map
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]
+        
+    
+
     return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t
 
 
